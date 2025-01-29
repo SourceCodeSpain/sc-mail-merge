@@ -290,14 +290,31 @@ class scMailMerger{
         ];
 
         update_option('mailmerger_batches',$existing_batches);
-
-        // Schedule the cron event
-        if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
-            wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
-            set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
-        } else {
-            set_transient('mailmerger_success_message', 'Emails scheduled successfully.', 30);
+        $max_attempts = 5;
+        $attempt = 0;
+        $scheduled = false;
+        
+        while (!$scheduled && $attempt < $max_attempts) {
+            if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
+                wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
+                $scheduled = true;
+                error_log("Successfully scheduled mailmerger_send_batch on attempt $attempt");
+                set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
+            }
+            $attempt++;
+            sleep(1); // Small delay before retrying
         }
+        
+        if (!$scheduled) {
+            error_log("Failed to schedule mailmerger_send_batch after multiple attempts");
+        }
+        // // Schedule the cron event
+        // if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
+        //     wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
+        //     set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
+        // } else {
+        //     set_transient('mailmerger_success_message', 'Emails scheduled successfully.', 30);
+        // }
 
         wp_safe_redirect(admin_url('admin.php?page=sc-mail-merger'));
         exit;

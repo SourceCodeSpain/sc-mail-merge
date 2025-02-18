@@ -10,8 +10,10 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: sc-mail-merge
 */
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
-
-class scMailMerger{
+function sanitize_bcc_email_test($data) {
+    return sanitize_email($data);
+}
+class MAILMERGER_SOURCECODE{
 
     // construct
     public function __construct(){
@@ -30,17 +32,17 @@ class scMailMerger{
             'Mail Merger by SourceCode',
             'Mail Merger',
             'manage_options',
-            'sc-mail-merger',
+            'sc-mailmerger',
             [$this,'admin_page'],
             'dashicons-email-alt'
         );
 
         add_submenu_page(
-            'sc-mail-merger',
+            'sc-mailmerger',
             'Mail Merger Settings',
             'Settings',
             'manage_options',
-            'sc-mail-merger-settings',
+            'sc-mailmerger-settings',
             [$this, 'settings_page']
         );
     }
@@ -48,7 +50,7 @@ class scMailMerger{
     // admin assets
 
     public function enqueue_admin_assets($hook){
-        if($hook !== 'toplevel_page_sc-mail-merger'){
+        if($hook !== 'toplevel_page_sc-mailmerger'){
             return;
         }
 
@@ -98,29 +100,39 @@ class scMailMerger{
         echo '<form method="post" action="options.php">';
 
         settings_fields('mailmerger_settings');
-        do_settings_sections('mail-merger-settings');
+        do_settings_sections('mailmerger-settings');
         submit_button();
 
         echo '</form>';
         echo '</div>';
     }
-
+	
+	public function sanitize_email_field($input) {
+        return sanitize_email($input); // Ensures valid email format
+    }
+    
     // Register settings
     public function register_settings() {
-        register_setting('mailmerger_settings', 'mailmerger_bcc_email');
+
+        register_setting(
+            'mailmerger_settings',
+             'mailmerger_bcc_email',
+             'sanitize_email'
+
+        );
 
         add_settings_section(
             'mailmerger_settings_section',
             'General Settings',
             [$this, 'render_settings_section'],
-            'mail-merger-settings'
+            'mailmerger-settings'
         );
 
         add_settings_field(
             'mailmerger_bcc_email',
             'BCC Email Address',
             [$this, 'bcc_email_field'],
-            'mail-merger-settings',
+            'mailmerger-settings',
             'mailmerger_settings_section'
         );
     }
@@ -128,6 +140,7 @@ class scMailMerger{
     public function render_settings_section() {
         echo '<p>Configure the general settings for Mail Merger.</p>';
     }
+
      // BCC email field
      public function bcc_email_field() {
         $bcc_email = get_option('mailmerger_bcc_email', '');
@@ -290,16 +303,33 @@ class scMailMerger{
         ];
 
         update_option('mailmerger_batches',$existing_batches);
-
-        // Schedule the cron event
-        if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
-            wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
-            set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
-        } else {
-            set_transient('mailmerger_success_message', 'Emails scheduled successfully.', 30);
+        $max_attempts = 5;
+        $attempt = 0;
+        $scheduled = false;
+        
+        while (!$scheduled && $attempt < $max_attempts) {
+            if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
+                wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
+                $scheduled = true;
+                // error_log("Successfully scheduled mailmerger_send_batch on attempt $attempt");
+                set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
+            }
+            $attempt++;
+            sleep(1); // Small delay before retrying
         }
+        
+        // if (!$scheduled) {
+            // error_log("Failed to schedule mailmerger_send_batch after multiple attempts");
+        // }
+        // // Schedule the cron event
+        // if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
+        //     wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
+        //     set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
+        // } else {
+        //     set_transient('mailmerger_success_message', 'Emails scheduled successfully.', 30);
+        // }
 
-        wp_safe_redirect(admin_url('admin.php?page=sc-mail-merger'));
+        wp_safe_redirect(admin_url('admin.php?page=sc-mailmerger'));
         exit;
     }
 
@@ -373,4 +403,4 @@ class scMailMerger{
     }
 }
 
-new scMailMerger();
+new MAILMERGER_SOURCECODE();

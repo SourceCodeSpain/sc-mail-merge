@@ -10,9 +10,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: sc-mail-merge
 */
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
-function sanitize_bcc_email_test($data) {
-    return sanitize_email($data);
-}
+
 class MAILMERGER_SOURCECODE{
 
     // construct
@@ -120,6 +118,7 @@ class MAILMERGER_SOURCECODE{
              'sanitize_email'
 
         );
+        register_setting('mailmerger_settings', 'mailmerger_bcc_email',['sanitize_callback' => [$this,'bcc_email_field']]);
 
         add_settings_section(
             'mailmerger_settings_section',
@@ -328,6 +327,31 @@ class MAILMERGER_SOURCECODE{
         // } else {
         //     set_transient('mailmerger_success_message', 'Emails scheduled successfully.', 30);
         // }
+        $max_attempts = 5;
+        $attempt = 0;
+        $scheduled = false;
+        
+        while (!$scheduled && $attempt < $max_attempts) {
+            if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
+                wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
+                $scheduled = true;
+                error_log("Successfully scheduled mailmerger_send_batch on attempt $attempt");
+                set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
+            }
+            $attempt++;
+            sleep(1); // Small delay before retrying
+        }
+        
+        if (!$scheduled) {
+            error_log("Failed to schedule mailmerger_send_batch after multiple attempts");
+        }
+        // // Schedule the cron event
+        // if (!wp_next_scheduled('mailmerger_send_batch', [$batch_id])) {
+        //     wp_schedule_single_event(time() + 20, 'mailmerger_send_batch', [$batch_id]);
+        //     set_transient('mailmerger_success_message', 'Emails have been scheduled successfully and cron event created.', 30);
+        // } else {
+        //     set_transient('mailmerger_success_message', 'Emails scheduled successfully.', 30);
+        // }
 
         wp_safe_redirect(admin_url('admin.php?page=sc-mailmerger'));
         exit;
@@ -402,5 +426,7 @@ class MAILMERGER_SOURCECODE{
 
     }
 }
+
+new MAILMERGER_SOURCECODE();
 
 new MAILMERGER_SOURCECODE();
